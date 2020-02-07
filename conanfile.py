@@ -31,3 +31,4 @@ class LibB(ConanFile):
     def package_info(self):
         self.cpp_info.libs = ["libB",]
 #new commit for libB
+#new commit for libB
