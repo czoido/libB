@@ -20,6 +20,7 @@ def get_stages(id, docker_image, profile, user_channel, config_url, conan_develo
                 docker.image(docker_image).inside("--net=host") {
                     def scmVars = checkout scm
                     def repository = scmVars.GIT_URL.tokenize('/')[3].split("\\.")[0]
+                    echo("${scmVars}")
                     sh "printenv"
                     withEnv(["CONAN_USER_HOME=${env.WORKSPACE}/conan_cache"]) {
                         def lockfile = "${id}.lock"
@@ -35,7 +36,7 @@ def get_stages(id, docker_image, profile, user_channel, config_url, conan_develo
                                 }
                             }
                             stage("DEPLOY: Start build info: ${env.JOB_NAME} ${env.BUILD_NUMBER}") { 
-                                if (env.TAG_NAME ==~ /release.*/) {
+                                if (env.BRANCH_NAME == "master") {
                                     sh "conan_build_info --v2 start \"${env.JOB_NAME}\" \"${env.BUILD_NUMBER}\""
                                 }
                             }
@@ -46,12 +47,12 @@ def get_stages(id, docker_image, profile, user_channel, config_url, conan_develo
                                 //sh "conan upload '*' --all -r ${conan_develop_repo} --confirm  --force"
                             }
                             stage("DEPLOY: Upload package") {                                
-                                if (env.TAG_NAME ==~ /release.*/) {
+                                if (env.BRANCH_NAME == "master") {
                                     sh "conan upload '*' --all -r ${conan_develop_repo} --confirm  --force"
                                 }
                             }
                             stage("DEPLOY: Create build info") {
-                                if (env.TAG_NAME ==~ /release.*/) {
+                                if (env.BRANCH_NAME == "master") {
                                     withCredentials([usernamePassword(credentialsId: 'artifactory-credentials', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
                                         sh "conan_build_info --v2 create --lockfile ${lockfile} --user \"\${ARTIFACTORY_USER}\" --password \"\${ARTIFACTORY_PASSWORD}\" ${buildInfoFilename}"
                                         buildInfo = readJSON(file: buildInfoFilename)
@@ -59,7 +60,7 @@ def get_stages(id, docker_image, profile, user_channel, config_url, conan_develo
                                 }
                             }
                             stage("DEPLOY: Upload lockfile") {
-                                if (env.TAG_NAME ==~ /release.*/) {
+                                if (env.BRANCH_NAME == "master") {
                                     name = sh (script: "conan inspect . --raw name", returnStdout: true).trim()
                                     version = sh (script: "conan inspect . --raw version", returnStdout: true).trim()                                
                                     def lockfile_url = "http://${env.ARTIFACTORY_URL}:8081/artifactory/${artifactory_metadata_repo}/${name}/${version}@${user_channel}/${profile}/conan.lock"
@@ -88,20 +89,9 @@ pipeline {
             steps {
                 script {
                     // maybe you want to do different things depending if it is a PR or not?
-                    echo("BRANCH NAME ---> ${env.BRANCH_NAME}")
-                    if (env.BRANCH_NAME == 'master') {
-                        echo("Maybe if the commit is to master we want to release a new version?")
-                    } else if (env.BRANCH_NAME.startsWith('PR')) {
-                        echo("This is a PR branch")
-                    }
-                    else {
-                        echo("This is a not a PR branch, not to master")
-                    }                             
+                    echo("Commit made to ${env.BRANCH_NAME} branch")
                     if (env.TAG_NAME ==~ /release.*/) {
-                        echo("This is a commit to master that is tagged with ${env.TAG_NAME}, so it's going to be deployed")
-                    }
-                    else {
-                        echo("The result of this commit won't be deployed")
+                        echo("This is a commit to master that is tagged with ${env.TAG_NAME}")
                     }
                     docker_runs = withEnv(["CONAN_HOOK_ERROR_LEVEL=40"]) {
                         parallel docker_runs.collectEntries { id, values ->
@@ -116,7 +106,7 @@ pipeline {
         // or doing a commit to master?
         // maybe if a new tag was created with the name release?
         stage('DEPLOY: Merge and publish build infos') {
-            when { tag "release-*" } 
+            when { branch "master" } 
             steps {
                 script {
                    docker.image("conanio/gcc8").inside("--net=host") {
