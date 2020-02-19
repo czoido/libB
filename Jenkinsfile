@@ -7,7 +7,7 @@ def user_channel = "mycompany/stable"
 def config_url = "https://github.com/conan-ci-cd-training/settings.git"
 def projects = line_split(readTrusted('dependent-projects.txt')).collect { "${it}@${user_channel}" } // TODO: Get list dynamically
 def conan_develop_repo = "conan-develop"
-def conan_build_repo = "conan-build"
+def conan_tmp_repo = "conan-tmp"
 def artifactory_metadata_repo = "conan-develop-metadata"
 
 String reference_revision = null
@@ -16,7 +16,7 @@ def docker_runs = [:]
 docker_runs["conanio-gcc8"] = ["conanio/gcc8", "conanio-gcc8"]	
 docker_runs["conanio-gcc7"] = ["conanio/gcc7", "conanio-gcc7"]
 
-def get_stages(id, docker_image, profile, user_channel, config_url, conan_develop_repo, conan_build_repo, artifactory_metadata_repo) {
+def get_stages(id, docker_image, profile, user_channel, config_url, conan_develop_repo, conan_tmp_repo, artifactory_metadata_repo) {
     return {
         stage(id) {
             node {
@@ -34,10 +34,10 @@ def get_stages(id, docker_image, profile, user_channel, config_url, conan_develo
                                 sh "conan --version"
                                 sh "conan config install ${config_url}"
                                 sh "conan remote add ${conan_develop_repo} http://${env.ARTIFACTORY_URL}/artifactory/api/conan/${conan_develop_repo}" // the namme of the repo is the same that the arttifactory key
-                                sh "conan remote add ${conan_build_repo} http://${env.ARTIFACTORY_URL}/artifactory/api/conan/${conan_build_repo}" // the namme of the repo is the same that the arttifactory key
+                                sh "conan remote add ${conan_tmp_repo} http://${env.ARTIFACTORY_URL}/artifactory/api/conan/${conan_tmp_repo}" // the namme of the repo is the same that the arttifactory key
                                 withCredentials([usernamePassword(credentialsId: 'artifactory-credentials', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
                                     sh "conan user -p ${ARTIFACTORY_PASSWORD} -r ${conan_develop_repo} ${ARTIFACTORY_USER}"
-                                    sh "conan user -p ${ARTIFACTORY_PASSWORD} -r ${conan_build_repo} ${ARTIFACTORY_USER}"
+                                    sh "conan user -p ${ARTIFACTORY_PASSWORD} -r ${conan_tmp_repo} ${ARTIFACTORY_USER}"
                                 }
                             }
                             stage("Start build info: ${env.JOB_NAME} ${env.BUILD_NUMBER}") { 
@@ -64,7 +64,11 @@ def get_stages(id, docker_image, profile, user_channel, config_url, conan_develo
                                 echo("tests OK!")
                             }
                             stage("Upload package") {                                
-                                sh "conan upload '*' --all -r ${conan_build_repo} --confirm  --force"
+                                sh "conan upload '*' --all -r ${conan_tmp_repo} --confirm  --force"
+                                // temporal fix
+                                if (env.BRANCH_NAME == "master") {
+                                    sh "conan upload '*' --all -r ${conan_develop_repo} --confirm  --force"
+                                }
                             }
                             stage("Create build info") {
                                 withCredentials([usernamePassword(credentialsId: 'artifactory-credentials', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
@@ -108,7 +112,7 @@ pipeline {
                     docker_runs = withEnv(["CONAN_HOOK_ERROR_LEVEL=40"]) {
                         parallel docker_runs.collectEntries { id, values ->
                           def (docker_image, profile) = values
-                            ["${id}": get_stages(id, docker_image, profile, user_channel, config_url, conan_develop_repo, conan_build_repo, artifactory_metadata_repo)]
+                            ["${id}": get_stages(id, docker_image, profile, user_channel, config_url, conan_develop_repo, conan_tmp_repo, artifactory_metadata_repo)]
                         }
                     }
                 }
