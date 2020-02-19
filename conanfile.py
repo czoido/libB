@@ -32,3 +32,5 @@ class LibB(ConanFile):
         self.cpp_info.libs = ["libB",]
 #new commit for libB
 #new commit for libB
+#new commit for libB
+#new commit for libB
