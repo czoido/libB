@@ -44,9 +44,8 @@ def get_stages(id, docker_image, profile, user_channel, config_url, conan_develo
                                 sh "conan_build_info --v2 start \"${env.JOB_NAME}\" \"${env.BUILD_NUMBER}\""
                             }
                             stage("Create package") {                                
-                                String arguments = "--profile ${profile} --lockfile=${lockfile}"
-                                sh "conan graph lock . ${arguments}"
-                                sh "conan create . ${user_channel} ${arguments} --build missing --ignore-dirty"
+                                sh "conan graph lock . --profile ${profile} --lockfile=${lockfile}"
+                                sh "conan create . ${user_channel} --profile ${profile} --lockfile=${lockfile} --build missing --ignore-dirty"
                                 name = sh (script: "conan inspect . --raw name", returnStdout: true).trim()
                                 version = sh (script: "conan inspect . --raw version", returnStdout: true).trim()                                
                                 // this is some kind of workaround, we have just created the package in the local cache
