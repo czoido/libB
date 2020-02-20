@@ -69,10 +69,6 @@ def get_stages(profile, docker_image, user_channel, config_url, conan_develop_re
                             }
                             stage("Upload package") {                                
                                 sh "conan upload '*' --all -r ${conan_tmp_repo} --confirm  --force"
-                                // temporal fix
-                                if (env.BRANCH_NAME == "master") {
-                                    sh "conan upload '*' --all -r ${conan_develop_repo} --confirm  --force"
-                                }
                             }
                             stage("Create build info") {
                                 withCredentials([usernamePassword(credentialsId: 'artifactory-credentials', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
