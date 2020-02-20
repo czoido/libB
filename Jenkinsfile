@@ -154,6 +154,7 @@ pipeline {
                     reference_revision = props[0]['revision']
                     assert reference_revision != null
                     def reference = "${name}/${version}@${user_channel}#${reference_revision}"
+                    def scmVars = checkout scm
                     parallel projects.collectEntries {project_id -> 
                         ["${project_id}": {
                             build(job: "${currentBuild.fullProjectName.tokenize('/')[0]}/jenkins/master", propagate: true, parameters: [
@@ -162,6 +163,8 @@ pipeline {
                                 [$class: 'StringParameterValue', name: 'organization', value: organization],
                                 [$class: 'StringParameterValue', name: 'build_name', value: env.JOB_NAME],
                                 [$class: 'StringParameterValue', name: 'build_number', value: env.BUILD_NUMBER],
+                                [$class: 'StringParameterValue', name: 'commit_number', value: scmVars.GIT_COMMIT],
+                                [$class: 'StringParameterValue', name: 'library_branch', value: env.BRANCH_NAME],
                             ]) 
                         }]
                     }
